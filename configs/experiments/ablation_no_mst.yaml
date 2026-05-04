@@ -1,0 +1,20 @@
+# Ablation: KG²RAG without MST filtering
+base: "../base.yaml"
+
+experiment:
+  name: "ablation_no_mst"
+  description: "KG expansion without MST-based graph filtering"
+
+retrieval:
+  kg_expansion:
+    enabled: true
+    use_fair_expansion: true
+    fairness_strategy: "in_traversal"
+  graph_filter:
+    enabled: false
+  reranker:
+    enabled: true
+
+evaluation:
+  fairness:
+    enabled: true

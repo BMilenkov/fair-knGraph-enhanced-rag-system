@@ -1,0 +1,18 @@
+# Baseline: Naive RAG without knowledge graph
+base: "../base.yaml"
+
+experiment:
+  name: "baseline_naive"
+  description: "Naive RAG with dense retrieval only, no KG expansion"
+
+retrieval:
+  kg_expansion:
+    enabled: false
+  graph_filter:
+    enabled: false
+  reranker:
+    enabled: false
+
+evaluation:
+  fairness:
+    enabled: true

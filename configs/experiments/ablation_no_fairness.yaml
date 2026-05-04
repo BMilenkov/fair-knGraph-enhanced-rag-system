@@ -1,0 +1,19 @@
+# Ablation: KG²RAG with fairness disabled
+base: "../base.yaml"
+
+experiment:
+  name: "ablation_no_fairness"
+  description: "Standard KG²RAG without fairness-aware expansion"
+
+retrieval:
+  kg_expansion:
+    enabled: true
+    use_fair_expansion: false
+  graph_filter:
+    enabled: true
+  reranker:
+    enabled: true
+
+evaluation:
+  fairness:
+    enabled: true  # Still measure fairness, just don't enforce it

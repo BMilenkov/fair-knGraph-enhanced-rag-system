@@ -1,0 +1,25 @@
+# Our contribution: Fairness-aware KG²RAG
+base: "../base.yaml"
+
+experiment:
+  name: "kg2rag_fair"
+  description: "Fairness-aware KG-guided retrieval with demographic-balanced expansion"
+
+retrieval:
+  kg_expansion:
+    enabled: true
+    max_hops: 2
+    use_fair_expansion: true
+    fairness_strategy: "in_traversal"  # post_hoc, in_traversal, or constraint
+    balance_factor: 0.8
+    max_group_ratio: 0.7  # For constraint strategy
+  graph_filter:
+    enabled: true
+  context:
+    organization: "dfs"
+  reranker:
+    enabled: true
+
+evaluation:
+  fairness:
+    enabled: true

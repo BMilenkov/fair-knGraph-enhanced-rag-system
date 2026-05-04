@@ -1,0 +1,22 @@
+# KG²RAG replication: standard KG-guided retrieval
+base: "../base.yaml"
+
+experiment:
+  name: "kg2rag_standard"
+  description: "KG²RAG replication with BFS expansion + MST filtering + DFS context"
+
+retrieval:
+  kg_expansion:
+    enabled: true
+    max_hops: 2
+    use_fair_expansion: false
+  graph_filter:
+    enabled: true
+  context:
+    organization: "dfs"
+  reranker:
+    enabled: true
+
+evaluation:
+  fairness:
+    enabled: true

@@ -1,0 +1,17 @@
+# Generation configuration
+base: "base.yaml"
+
+generation:
+  model_name: "mistralai/Mistral-7B-Instruct-v0.3"
+  max_new_tokens: 128
+  temperature: 0.1
+  top_p: 0.9
+  do_sample: false
+
+  # Prompt settings
+  prompt_template: "qa_with_context"
+  include_evidence_triples: false  # Include KG triples in prompt
+
+  # Batching
+  batch_size: 4
+  use_4bit: true  # Quantization for memory efficiency

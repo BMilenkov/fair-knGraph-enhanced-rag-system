@@ -1,0 +1,40 @@
+# Retrieval pipeline configuration
+base: "base.yaml"
+
+retrieval:
+  # Semantic retrieval (dense)
+  dense:
+    model_name: "BAAI/bge-base-en-v1.5"
+    top_k: 10
+    index_type: "flat"  # flat or ivf
+
+  # Sparse retrieval (BM25)
+  sparse:
+    top_k: 10
+    k1: 1.5
+    b: 0.75
+
+  # KG-guided expansion (KG²RAG)
+  kg_expansion:
+    enabled: true
+    backend: "neo4j"
+    max_hops: 2
+    max_expanded_chunks: 20
+    score_decay: 0.5  # Score decay per hop
+    use_fair_expansion: false  # Toggle fairness-aware expansion
+
+  # MST-based filtering (KG²RAG)
+  graph_filter:
+    enabled: true
+    max_chunks_after_filter: 15
+
+  # Context organization
+  context:
+    max_context_tokens: 2048
+    organization: "dfs"  # dfs (KG²RAG) or relevance
+
+  # Reranking
+  reranker:
+    enabled: true
+    model_name: "BAAI/bge-reranker-base"
+    top_k: 5

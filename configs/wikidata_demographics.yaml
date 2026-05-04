@@ -1,0 +1,26 @@
+# Wikidata demographics fetching configuration
+base: "base.yaml"
+
+demographics:
+  sparql_endpoint: "https://query.wikidata.org/sparql"
+  batch_size: 50
+  max_retries: 3
+  rate_limit_seconds: 1.0
+
+  # Properties to fetch
+  properties:
+    gender: "P21"
+    country: "P27"
+    birthplace: "P19"
+
+  # Geographic grouping (following RAG Fairness paper)
+  geographic_groups:
+    protected: "non_european"
+    non_protected: "european"
+
+  # Gender grouping
+  gender_groups:
+    protected: "female"
+    non_protected: "male"
+
+  output_file: "data/processed/entity_demographics.json"
