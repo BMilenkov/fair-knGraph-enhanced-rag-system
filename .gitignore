@@ -32,6 +32,7 @@ outputs/logs/
 
 # Jupyter
 .ipynb_checkpoints/
+notebooks/00_colab_*.ipynb
 
 # OS
 .DS_Store

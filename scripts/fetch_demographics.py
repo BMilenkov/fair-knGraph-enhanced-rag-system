@@ -48,13 +48,12 @@ def main() -> None:
     logger.info("Fetching demographics from Wikidata SPARQL...")
     demographics = fetch_demographics_batch(list(all_qids))
 
-    persons = sum(1 for d in demographics.values() if d.is_person)
     gendered = sum(1 for d in demographics.values() if d.gender is not None)
     with_country = sum(1 for d in demographics.values() if d.country is not None)
 
     logger.info(
         f"Fetched demographics for {len(demographics)} entities: "
-        f"{persons} persons, {gendered} with gender, {with_country} with country"
+        f"{gendered} with gender, {with_country} with country"
     )
 
     output_path = Path(

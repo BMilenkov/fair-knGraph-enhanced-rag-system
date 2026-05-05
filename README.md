@@ -48,7 +48,7 @@ Query → Dense Retrieval (FAISS) → Seed chunks
 | Graph Algorithms | NetworkX (MST, DFS on Neo4j-extracted subgraphs) |
 | Reranking | FlagEmbedding cross-encoder |
 | LLM Backend | HuggingFace transformers (Mistral-7B, 4-bit quantized) |
-| Demographics | Wikidata SPARQL (P21 gender, P27 nationality, P19 birthplace) |
+| Demographics | Wikidata SPARQL (P21 gender, P27 nationality) |
 | Configuration | OmegaConf YAML with env var interpolation |
 | Dataset | [2WikiMultiHopQA](https://github.com/Alab-NII/2wikimultihop) (COLING 2020) |
 

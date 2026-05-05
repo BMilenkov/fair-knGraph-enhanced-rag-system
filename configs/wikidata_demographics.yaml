@@ -11,7 +11,6 @@ demographics:
   properties:
     gender: "P21"
     country: "P27"
-    birthplace: "P19"
 
   # Geographic grouping (following RAG Fairness paper)
   geographic_groups:

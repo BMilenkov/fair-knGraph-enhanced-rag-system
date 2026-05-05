@@ -2,34 +2,17 @@
 base: "base.yaml"
 
 evaluation:
-  # Accuracy metrics
-  accuracy:
-    compute_em: true
-    compute_f1: true
-    compute_support_f1: true
-    normalize_answers: true
-
   # Retrieval quality metrics
   retrieval:
-    compute_mrr: true
-    compute_recall: true
     k_values: [1, 3, 5, 10]
 
   # Fairness metrics
   fairness:
     enabled: true
-    demographic_attributes: ["gender", "geography"]
-    compute_demographic_parity: true
-    compute_equalized_odds: true
-    compute_retrieval_fairness: true
-    compute_group_disparity: true
+    demographic_attributes: ["gender", "geo_group"]
 
   # Statistical significance
   statistics:
     bootstrap_samples: 1000
     confidence_level: 0.95
     random_seed: 42
-
-  # Output
-  save_detailed_results: true
-  save_per_question_scores: true

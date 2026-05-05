@@ -32,7 +32,7 @@ def main() -> None:
         print(f"Available: {', '.join(available)}")
         sys.exit(1)
 
-    # Forward to run_full_pipeline
+    # Build args and forward to run_full_pipeline.main()
     forward_args = ["run_full_pipeline.py", "--config", str(config_path), "--split", args.split]
     if args.start_from:
         forward_args.extend(["--start-from", args.start_from])
@@ -40,7 +40,13 @@ def main() -> None:
         forward_args.extend(["--only", args.only])
 
     sys.argv = forward_args
-    from scripts.run_full_pipeline import main as pipeline_main
+
+    # Import from the scripts directory
+    scripts_dir = Path(__file__).parent
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+
+    from run_full_pipeline import main as pipeline_main
     pipeline_main()
 
 

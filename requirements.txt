@@ -7,19 +7,21 @@ omegaconf>=2.3
 pyyaml>=6.0
 tqdm>=4.65
 jinja2>=3.1
+python-dotenv>=1.0  # Load .env file for Neo4j credentials
 
 # NLP / Embeddings
 transformers>=4.35
 torch>=2.1
 sentence-transformers>=2.2
 FlagEmbedding>=1.2
+bitsandbytes>=0.41  # 4-bit quantization for LLM on Colab T4
+accelerate>=0.24    # Required by transformers for device_map="auto"
 
 # Retrieval
 faiss-cpu>=1.7
 rank-bm25>=0.2
 
 # Demographics (Wikidata)
-SPARQLWrapper>=2.0
 requests>=2.31
 
 # Evaluation
@@ -27,10 +29,5 @@ scikit-learn>=1.3
 scipy>=1.11
 
 # Notebooks
-jupyter>=1.0
 matplotlib>=3.7
 seaborn>=0.12
-
-# Dev
-pytest>=7.4
-ruff>=0.1

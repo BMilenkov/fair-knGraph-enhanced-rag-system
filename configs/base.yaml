@@ -1,7 +1,7 @@
 # Base configuration - shared defaults across all pipeline stages
 
 seed: 42
-device: "cuda"  # cuda or cpu
+device: "cuda"  # cuda (Colab T4) or cpu
 
 paths:
   raw_data: "data/raw"
@@ -16,18 +16,19 @@ paths:
 dataset:
   name: "2wikimultihopqa"
   split: "dev"
-  max_samples: null  # null = use all samples
+  max_samples: null  # null = use all samples; set to 100 for quick test
 
 chunking:
   max_tokens: 512
-  overlap_sentences: 1
 
 logging:
   level: "INFO"
   log_to_file: true
 
+# Neo4j AuraDB (free tier) — set env vars in Colab secrets or os.environ
+# AuraDB uses neo4j+s:// protocol (encrypted), not bolt://
 neo4j:
-  uri: "${oc.env:NEO4J_URI,bolt://localhost:7687}"
+  uri: "${oc.env:NEO4J_URI,neo4j+s://xxxxxxxx.databases.neo4j.io}"
   user: "${oc.env:NEO4J_USER,neo4j}"
   password: "${oc.env:NEO4J_PASSWORD,}"
   database: "${oc.env:NEO4J_DATABASE,neo4j}"

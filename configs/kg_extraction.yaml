@@ -2,29 +2,14 @@
 base: "base.yaml"
 
 kg_extraction:
-  # Extraction source — 2WikiMultiHopQA provides ground-truth evidence triples
-  # from Wikidata, so we use those directly instead of LLM-based extraction.
-  source: "evidence"  # "evidence" (ground-truth) or "llm" (few-shot extraction)
+  # We use 2WikiMultiHopQA's ground-truth evidence triples from Wikidata directly.
+  source: "evidence"
 
-  # LLM extraction settings (only used when source: "llm")
-  llm:
-    model_name: "mistralai/Mistral-7B-Instruct-v0.3"
-    max_new_tokens: 256
-    temperature: 0.1
-    batch_size: 8
-    require_text_grounding: true
-
-  # Triplet filtering
-  min_relation_length: 2
-  reject_self_loops: true
-
-  # Entity linking (n-gram overlap normalization, KG²RAG §3.2)
+  # Entity linking (n-gram overlap normalization, KG2RAG section 3.2)
   entity_linking:
     ngram_size: 3
-    overlap_threshold: 0.90  # KG²RAG default
-    merge_strategy: "most_frequent"  # canonical form selection
+    overlap_threshold: 0.90
 
   # Neo4j persistence
-  persist_to_neo4j: true
   neo4j_batch_size: 2000
-  save_intermediate: true  # also save triplets JSON for inspection
+  save_intermediate: true  # save triplets JSON for inspection

@@ -345,36 +345,22 @@ class KnowledgeGraph:
             return {rel for rel in rels if rel}
 
     def summary(self) -> dict:
-        """Get a summary of the knowledge graph.
-
-        Returns:
-            Dictionary with graph statistics.
-        """
+        """Get KG statistics using Cypher queries (no full graph export)."""
         num_entities = self.num_entities
         num_relations = self.num_relations
+
+        with self._driver.session(database=self.database) as session:
+            chunk_rec = session.run("MATCH (c:Chunk) RETURN count(c) AS n").single()
+            num_chunks = int(chunk_rec["n"]) if chunk_rec else 0
+
         density = 0.0
         if num_entities > 1:
             density = num_relations / (num_entities * (num_entities - 1))
-
-        with self._driver.session(database=self.database) as session:
-            chunk_record = session.run(
-                "MATCH (c:Chunk) RETURN count(c) AS n"
-            ).single()
-            num_chunks_mapped = int(chunk_record["n"]) if chunk_record else 0
-
-        # Uses an exported view for weakly connected components.
-        graph = self.to_networkx()
-        num_components = (
-            nx.number_weakly_connected_components(graph)
-            if graph.number_of_nodes() > 0
-            else 0
-        )
 
         return {
             "num_entities": num_entities,
             "num_relations": num_relations,
             "num_relation_types": len(self.relation_types),
-            "num_chunks_mapped": num_chunks_mapped,
-            "density": density,
-            "num_connected_components": num_components,
+            "num_chunks_mapped": num_chunks,
+            "density": round(density, 6),
         }

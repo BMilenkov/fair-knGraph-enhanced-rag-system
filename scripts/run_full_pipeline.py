@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import platform
 import sys
 import time
@@ -126,6 +125,35 @@ def run_kg_build(cfg: dict, split: str, logger) -> StageResult:
     kg_dir = Path(cfg["paths"]["kg_data"])
     kg_dir.mkdir(parents=True, exist_ok=True)
 
+    # Check if Neo4j already has data — skip if populated
+    neo4j_cfg = cfg.get("neo4j", {})
+    if not neo4j_cfg.get("clear_on_start", False):
+        try:
+            kg_check = connect_kg(
+                uri=neo4j_cfg.get("uri"),
+                user=neo4j_cfg.get("user"),
+                password=neo4j_cfg.get("password"),
+                database=neo4j_cfg.get("database", "neo4j"),
+                clear_on_init=False,
+            )
+            existing = kg_check.num_entities
+            if existing > 0:
+                summary = kg_check.summary()
+                kg_check.close()
+                logger.info(
+                    "Neo4j already has %d entities — reusing existing KG", existing
+                )
+                return StageResult(
+                    stage="KG_BUILD", status="skipped",
+                    message=(
+                        f"Reused Neo4j KG: {summary['num_entities']} entities, "
+                        f"{summary['num_relations']} relations"
+                    ),
+                )
+            kg_check.close()
+        except Exception:
+            logger.debug("Could not check Neo4j, will rebuild KG")
+
     # Load chunks mapping for source_chunk_id linkage
     manager = CorpusManager(raw_dir=raw_dir, processed_dir=processed_dir)
     manager.load_processed(split)
@@ -211,8 +239,8 @@ def run_demographics(cfg: dict, split: str, logger) -> StageResult:
     logger.info("Fetching demographics for %d Wikidata entities", len(all_qids))
     demographics = fetch_demographics_batch(list(all_qids))
 
-    persons = sum(1 for d in demographics.values() if d.is_person)
-    logger.info("Found %d persons out of %d entities", persons, len(demographics))
+    gendered = sum(1 for d in demographics.values() if d.gender is not None)
+    logger.info("Fetched %d entities (%d with gender)", len(demographics), gendered)
 
     processed_dir.mkdir(parents=True, exist_ok=True)
     write_json(demographics_to_dicts(demographics), output_path)
@@ -220,7 +248,7 @@ def run_demographics(cfg: dict, split: str, logger) -> StageResult:
     return StageResult(
         stage="DEMOGRAPHICS", status="completed",
         artifacts={str(output_path): _sha256_file(output_path)},
-        message=f"{len(demographics)} entities, {persons} persons",
+        message=f"{len(demographics)} entities, {gendered} with gender",
     )
 
 
@@ -546,6 +574,7 @@ def run_pipeline(
         Dict mapping stage name to StageResult.
     """
     output_dir = Path(cfg["paths"]["output_dir"])
+
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest = _load_manifest(output_dir)
 

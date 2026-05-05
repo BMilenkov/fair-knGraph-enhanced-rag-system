@@ -62,10 +62,12 @@ def run_extract_kg(config_path: Path, split: str = "dev") -> dict:
 
     for record in records:
         chunk_ids = question_to_chunks.get(record.id, [])
-        source_chunk_id = chunk_ids[0] if chunk_ids else ""
-
         evidence_tuples = [(ev.subject, ev.relation, ev.obj) for ev in record.evidences]
-        triplets.extend(extract_triplets_from_evidence(evidence_tuples, chunk_id=source_chunk_id))
+        # Link evidence triples to all associated chunks
+        for cid in chunk_ids:
+            triplets.extend(extract_triplets_from_evidence(evidence_tuples, chunk_id=cid))
+        if not chunk_ids:
+            triplets.extend(extract_triplets_from_evidence(evidence_tuples, chunk_id=""))
 
     logger.info("Raw triplets extracted: %s", len(triplets))
 

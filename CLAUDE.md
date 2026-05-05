@@ -6,35 +6,27 @@ KG-Enhanced RAG system for multi-hop QA with demographic fairness.
 Dataset: 2WikiMultiHopQA. Reference papers: KG²RAG (NAACL 2025), RAG Fairness (COLING 2025).
 
 ## Tech Stack
-- Python 3.10+, pip, venv
-- LLM backend: HuggingFace transformers (local models, e.g., Llama-3-8B, Mistral-7B)
-- KG storage: **Neo4j** (graph DB) + NetworkX (subgraph algorithms)
-- Retrieval: FAISS (dense), rank_bm25 (sparse), sentence-transformers
+- Python 3.10+, pip
+- LLM backend: HuggingFace transformers (Mistral-7B, 4-bit quantized via bitsandbytes)
+- KG storage: **Neo4j AuraDB** (free tier, cloud) + NetworkX (subgraph algorithms)
+- Retrieval: FAISS (dense), rank_bm25 (sparse), sentence-transformers (BGE)
 - Demographics: Wikidata SPARQL via requests
-- Config: OmegaConf YAML files
-- Testing: pytest
-- Linting: ruff (100-char line limit)
+- Config: OmegaConf YAML with env var interpolation
+- Runtime: **Google Colab** (T4 GPU) recommended
 
-## Conventions
-- Google-style docstrings, type hints everywhere
-- 100-character line width
-- Config-driven design: no hardcoded paths or model names
-- Conventional commits: feat:, fix:, docs:, refactor:, test:, chore:
+## Running on Google Colab
+1. Open `notebooks/00_colab_setup.ipynb` in Colab
+2. Set runtime to T4 GPU
+3. Set Neo4j AuraDB credentials (NEO4J_URI, NEO4J_PASSWORD)
+4. Run cells in order
 
 ## Key Commands
 ```bash
-# Setup
-python -m venv .venv && source .venv/Scripts/activate  # Windows
-pip install -r requirements.txt
-
-# Neo4j: must be running at bolt://localhost:7687
-# Set NEO4J_PASSWORD env var or add to configs/base.yaml
-
 # Data
 python scripts/download_data.py
 python scripts/fetch_demographics.py
 
-# Full pipeline (recommended — smart caching, versioned, with logs)
+# Full pipeline (smart caching — stages 1-4 built once, 5-7 re-run per experiment)
 python scripts/run_full_pipeline.py --config configs/experiments/kg2rag_fair.yaml
 python scripts/run_full_pipeline.py --config configs/experiments/kg2rag_fair.yaml --start-from RETRIEVE
 python scripts/run_full_pipeline.py --config configs/experiments/kg2rag_fair.yaml --only EVALUATE
@@ -43,33 +35,29 @@ python scripts/run_full_pipeline.py --config configs/experiments/kg2rag_fair.yam
 python scripts/run_experiment.py --experiment kg2rag_fair
 python scripts/run_experiment.py --experiment baseline_naive --only EVALUATE
 
-# Individual stages (for development)
-python scripts/extract_kg.py --config configs/kg_extraction.yaml
-python scripts/build_index.py --config configs/retrieval.yaml
-python scripts/run_retrieval.py --config configs/retrieval.yaml
-python scripts/run_generation.py --config configs/generation.yaml
-python scripts/evaluate.py --config configs/evaluation.yaml
-
-# Tests
-pytest tests/unit/ -v
-pytest tests/integration/ -v
-pytest tests/ -v --tb=short
+# Quick test (100 samples)
+python scripts/run_full_pipeline.py --config configs/experiments/kg2rag_fair.yaml dataset.max_samples=100
 ```
 
-## Pipeline Stages
-The full pipeline (`run_full_pipeline.py`) runs 7 stages with smart caching:
+## Neo4j AuraDB Setup
+1. Create free instance at https://neo4j.io/cloud/aura-free/
+2. Set env vars before running pipeline:
+   ```bash
+   export NEO4J_URI="neo4j+s://xxxxxxxx.databases.neo4j.io"
+   export NEO4J_PASSWORD="your-password"
+   ```
+3. AuraDB uses `neo4j+s://` protocol (encrypted); local Neo4j uses `bolt://`
 
+## Pipeline Stages
 | # | Stage       | Description                                    | Cached? |
 |---|-------------|------------------------------------------------|---------|
 | 1 | PREPROCESS  | Parse 2WikiMultiHopQA, chunk paragraphs        | Yes     |
-| 2 | KG_BUILD    | Evidence triples → normalize → Neo4j           | Neo4j   |
+| 2 | KG_BUILD    | Evidence triples → normalize → Neo4j AuraDB    | Neo4j   |
 | 3 | DEMOGRAPHICS| Fetch Wikidata gender/nationality for entities | Yes     |
 | 4 | INDEX       | Build FAISS dense + BM25 indices               | Yes     |
 | 5 | RETRIEVE    | Semantic → KG expand → MST filter → DFS order  | No      |
-| 6 | GENERATE    | Local LLM answer generation                    | No      |
+| 6 | GENERATE    | Local LLM answer generation (Mistral-7B 4-bit) | No      |
 | 7 | EVALUATE    | Accuracy + fairness + statistical metrics       | No      |
-
-Stages 1-4 are built once and reused. Re-running only rebuilds stages 5-7.
 
 ## Dataset Format (2WikiMultiHopQA)
 Each sample has: `_id`, `question`, `answer`, `supporting_facts` (title + sent_id),
@@ -79,12 +67,10 @@ Each sample has: `_id`, `question`, `answer`, `supporting_facts` (title + sent_i
 Key insight: we use `evidences` directly as KG triples (no LLM extraction needed)
 and `entity_ids` for ground-truth demographics from Wikidata.
 
-## Data Layout
-- `data/raw/` — 2WikiMultiHopQA downloads (gitignored)
-- `data/processed/` — Chunked data + demographics (gitignored)
-- `data/kg/` — Triplet snapshots + Neo4j metadata (gitignored)
-- `data/indices/` — FAISS vector indices (gitignored)
-- `outputs/` — Predictions, metrics, logs, manifests (gitignored)
+## Conventions
+- Google-style docstrings, type hints everywhere
+- 100-character line width
+- Config-driven design: no hardcoded paths or model names
 
 ## Module Organization
 - `src/fair_kg_rag/data/` — Dataset loading, preprocessing, Wikidata demographics

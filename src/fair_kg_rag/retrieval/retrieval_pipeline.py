@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from omegaconf import DictConfig
@@ -91,7 +92,6 @@ class RetrievalPipeline:
         # Dense retriever — reuse saved FAISS index if available
         dense_cfg = retrieval_cfg.get("dense", {})
         index_dir = self.cfg.get("paths", {}).get("index_data", "data/indices")
-        from pathlib import Path
         faiss_path = Path(index_dir) / f"{self.cfg.get('_split', 'dev')}_faiss.index"
 
         self._semantic = SemanticRetriever(
