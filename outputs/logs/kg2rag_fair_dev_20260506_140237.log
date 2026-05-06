@@ -1,0 +1,79 @@
+2026-05-06 14:02:37 | INFO     | pipeline | ========================================================================
+2026-05-06 14:02:37 | INFO     | pipeline | Fair KG-Enhanced RAG Pipeline v0.2.0
+2026-05-06 14:02:37 | INFO     | pipeline | Experiment : kg2rag_fair
+2026-05-06 14:02:37 | INFO     | pipeline | Description: Fairness-aware KG-guided retrieval with demographic-balanced expansion
+2026-05-06 14:02:37 | INFO     | pipeline | Split      : dev
+2026-05-06 14:02:37 | INFO     | pipeline | Device     : cuda
+2026-05-06 14:02:37 | INFO     | pipeline | Python     : 3.12.13
+2026-05-06 14:02:37 | INFO     | pipeline | Platform   : Linux-6.6.113+-x86_64-with-glibc2.35
+2026-05-06 14:02:37 | INFO     | pipeline | Timestamp  : 2026-05-06T14:02:37.207023+00:00
+2026-05-06 14:02:37 | INFO     | pipeline | ========================================================================
+2026-05-06 14:02:37 | INFO     | pipeline | 
+2026-05-06 14:02:37 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 14:02:37 | INFO     | pipeline |   Stage 1/7: PREPROCESS 
+2026-05-06 14:02:37 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 14:02:37 | INFO     | pipeline | Chunks already exist at data/processed/dev_chunks.json — reusing
+2026-05-06 14:02:37 | INFO     | pipeline |   » PREPROCESS  [skipped]  0.0s  — Reused data/processed/dev_chunks.json
+2026-05-06 14:02:37 | INFO     | pipeline | 
+2026-05-06 14:02:37 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 14:02:37 | INFO     | pipeline |   Stage 2/7: KG_BUILD
+2026-05-06 14:02:37 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 14:02:41 | INFO     | pipeline | Extracting ground-truth evidence triples from 12576 records
+2026-05-06 14:02:42 | INFO     | pipeline | Raw evidence triples: 310713
+2026-05-06 15:02:22 | INFO     | pipeline | After normalization: 310532 triples, 32920 entity clusters
+2026-05-06 15:03:27 | INFO     | pipeline |   ✓ KG_BUILD  [completed]  3650.7s  — 19061 entities, 160532 relations
+2026-05-06 15:03:27 | INFO     | pipeline | 
+2026-05-06 15:03:27 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 15:03:27 | INFO     | pipeline |   Stage 3/7: DEMOGRAPHICS
+2026-05-06 15:03:27 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 15:03:29 | INFO     | pipeline | Fetching demographics for 23561 Wikidata entities
+2026-05-06 15:12:44 | INFO     | pipeline | Fetched 23561 entities (12536 with gender)
+2026-05-06 15:12:44 | INFO     | pipeline |   ✓ DEMOGRAPHICS  [completed]  556.7s  — 23561 entities, 12536 with gender
+2026-05-06 15:12:44 | INFO     | pipeline | 
+2026-05-06 15:12:44 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 15:12:44 | INFO     | pipeline |   Stage 4/7: INDEX
+2026-05-06 15:12:44 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 15:12:45 | INFO     | pipeline | Building FAISS index with BAAI/bge-base-en-v1.5 (55210 chunks)
+2026-05-06 15:20:18 | INFO     | pipeline |   ✓ INDEX  [completed]  454.3s  — Indexed 55210 chunks with BAAI/bge-base-en-v1.5
+2026-05-06 15:20:18 | INFO     | pipeline | 
+2026-05-06 15:20:18 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 15:20:18 | INFO     | pipeline |   Stage 5/7: RETRIEVE
+2026-05-06 15:20:18 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-06 15:21:37 | ERROR    | pipeline | Stage RETRIEVE FAILED
+Traceback (most recent call last):
+  File "/content/fair-knGraph-enhanced-rag-system/scripts/run_full_pipeline.py", line 614, in run_pipeline
+    sr = runner(cfg, split, logger)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/content/fair-knGraph-enhanced-rag-system/scripts/run_full_pipeline.py", line 363, in run_retrieve
+    ret = pipeline.retrieve(record.question)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/content/fair-knGraph-enhanced-rag-system/src/fair_kg_rag/retrieval/retrieval_pipeline.py", line 203, in retrieve
+    reranked = self._reranker.rerank(query, ids, self.chunk_texts, top_k=rerank_k)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/content/fair-knGraph-enhanced-rag-system/src/fair_kg_rag/retrieval/reranker.py", line 66, in rerank
+    scores = self._reranker.compute_score(pairs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/FlagEmbedding/abc/inference/AbsReranker.py", line 218, in compute_score
+    return self.compute_score_single_gpu(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/FlagEmbedding/inference/reranker/encoder_only/base.py", line 147, in compute_score_single_gpu
+    item = self.tokenizer.prepare_for_model(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/tokenization_utils_base.py", line 1326, in __getattr__
+    raise AttributeError(f"{self.__class__.__name__} has no attribute {key}")
+AttributeError: XLMRobertaTokenizer has no attribute prepare_for_model
+2026-05-06 15:21:38 | INFO     | pipeline |   ✗ RETRIEVE  [failed]  79.9s  — XLMRobertaTokenizer has no attribute prepare_for_model
+2026-05-06 15:21:38 | ERROR    | pipeline | Pipeline halted at stage RETRIEVE
+2026-05-06 15:21:38 | INFO     | pipeline | 
+2026-05-06 15:21:38 | INFO     | pipeline | ========================================================================
+2026-05-06 15:21:38 | INFO     | pipeline |   PIPELINE SUMMARY — kg2rag_fair — 4741.7s total
+2026-05-06 15:21:38 | INFO     | pipeline | ========================================================================
+2026-05-06 15:21:38 | INFO     | pipeline |   » PREPROCESS          0.0s  Reused data/processed/dev_chunks.json
+2026-05-06 15:21:38 | INFO     | pipeline |   ✓ KG_BUILD         3650.7s  19061 entities, 160532 relations
+2026-05-06 15:21:38 | INFO     | pipeline |   ✓ DEMOGRAPHICS      556.7s  23561 entities, 12536 with gender
+2026-05-06 15:21:38 | INFO     | pipeline |   ✓ INDEX             454.3s  Indexed 55210 chunks with BAAI/bge-base-en-v1.5
+2026-05-06 15:21:38 | INFO     | pipeline |   ✗ RETRIEVE           79.9s  XLMRobertaTokenizer has no attribute prepare_for_model
+2026-05-06 15:21:38 | INFO     | pipeline | ========================================================================

@@ -1,0 +1,79 @@
+{
+  "stages": {
+    "PREPROCESS": {
+      "status": "skipped",
+      "duration_s": 0.0,
+      "artifacts": {},
+      "message": "Reused data/processed/dev_chunks.json",
+      "timestamp": "2026-05-06T14:02:37.210876+00:00"
+    },
+    "KG_BUILD": {
+      "status": "completed",
+      "duration_s": 3650.69,
+      "artifacts": {
+        "data/kg/dev_kg_triplets.json": "0871ebc495f61171"
+      },
+      "message": "19061 entities, 160532 relations",
+      "timestamp": "2026-05-06T15:03:27.898261+00:00"
+    },
+    "DEMOGRAPHICS": {
+      "status": "completed",
+      "duration_s": 556.73,
+      "artifacts": {
+        "data/processed/entity_demographics.json": "ca2cb96b47b4a833"
+      },
+      "message": "23561 entities, 12536 with gender",
+      "timestamp": "2026-05-06T15:12:44.628285+00:00"
+    },
+    "INDEX": {
+      "status": "completed",
+      "duration_s": 454.3,
+      "artifacts": {
+        "data/indices/dev_faiss.index": "8512c5ee13a2b999"
+      },
+      "message": "Indexed 55210 chunks with BAAI/bge-base-en-v1.5",
+      "timestamp": "2026-05-06T15:20:18.929285+00:00"
+    },
+    "RETRIEVE": {
+      "status": "failed",
+      "duration_s": 79.93,
+      "artifacts": {},
+      "message": "XLMRobertaTokenizer has no attribute prepare_for_model",
+      "timestamp": "2026-05-06T15:21:38.865352+00:00"
+    }
+  },
+  "last_run": {
+    "experiment": "kg2rag_fair",
+    "split": "dev",
+    "version": "0.2.0",
+    "total_duration_s": 4741.66,
+    "timestamp": "2026-05-06T15:21:38.870205+00:00",
+    "stages": {
+      "PREPROCESS": {
+        "status": "skipped",
+        "duration_s": 0.0,
+        "message": "Reused data/processed/dev_chunks.json"
+      },
+      "KG_BUILD": {
+        "status": "completed",
+        "duration_s": 3650.69,
+        "message": "19061 entities, 160532 relations"
+      },
+      "DEMOGRAPHICS": {
+        "status": "completed",
+        "duration_s": 556.73,
+        "message": "23561 entities, 12536 with gender"
+      },
+      "INDEX": {
+        "status": "completed",
+        "duration_s": 454.3,
+        "message": "Indexed 55210 chunks with BAAI/bge-base-en-v1.5"
+      },
+      "RETRIEVE": {
+        "status": "failed",
+        "duration_s": 79.93,
+        "message": "XLMRobertaTokenizer has no attribute prepare_for_model"
+      }
+    }
+  }
+}

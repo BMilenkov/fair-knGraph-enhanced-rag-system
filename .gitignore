@@ -25,11 +25,6 @@ data/processed/
 data/kg/
 data/indices/
 
-# Outputs
-outputs/predictions/
-outputs/metrics/
-outputs/logs/
-
 # Jupyter
 .ipynb_checkpoints/
 notebooks/00_colab_*.ipynb
