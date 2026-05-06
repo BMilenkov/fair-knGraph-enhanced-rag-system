@@ -73,9 +73,9 @@ cp .env.example .env
 
 Required environment variables:
 ```
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=your-password
+NEO4J_URI=neo4j+s://xxxxxxxx.databases.neo4j.io
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your-auradb-password
 NEO4J_DATABASE=neo4j
 ```
 

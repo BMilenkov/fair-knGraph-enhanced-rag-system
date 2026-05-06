@@ -24,7 +24,7 @@ def connect_kg(
 
     Args:
         uri: Neo4j bolt URI (falls back to NEO4J_URI if None).
-        user: Neo4j username (falls back to NEO4J_USER if None).
+        user: Neo4j username (falls back to NEO4J_USERNAME if None).
         password: Neo4j password (falls back to NEO4J_PASSWORD if None).
         database: Neo4j database name.
         clear_on_init: If True, clear all existing KG data first.
@@ -33,7 +33,7 @@ def connect_kg(
         Connected KnowledgeGraph instance.
     """
     uri = uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
-    user = user or os.getenv("NEO4J_USER", "neo4j")
+    user = user or os.getenv("NEO4J_USERNAME", "neo4j")
     password = password or os.getenv("NEO4J_PASSWORD")
 
     if not password:
