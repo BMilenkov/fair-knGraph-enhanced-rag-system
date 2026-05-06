@@ -26,10 +26,6 @@ logger = setup_logging("download_data")
 DATASET_URL = (
     "https://www.dropbox.com/s/ms2m13252h6xubs/data_ids_april7.zip?dl=1"
 )
-PARA_URL = (
-    "https://www.dropbox.com/s/7ep3fjhllqsrd0r/para_with_hyperlink.zip?dl=1"
-)
-
 DEFAULT_RAW_DIR = Path("data/raw")
 
 
@@ -96,16 +92,6 @@ def download_2wikimultihopqa(raw_dir: Path = DEFAULT_RAW_DIR) -> None:
 
     # Extract
     extract_zip(data_zip, raw_dir)
-
-    # Download paragraphs with hyperlinks (optional, for richer KG)
-    para_zip = raw_dir / "para_with_hyperlink.zip"
-    if not para_zip.exists():
-        logger.info("Downloading paragraph data with hyperlinks...")
-        try:
-            download_file(PARA_URL, para_zip, "Paragraph hyperlinks")
-            extract_zip(para_zip, raw_dir)
-        except requests.RequestException as e:
-            logger.warning(f"Hyperlink data download failed (optional): {e}")
 
     # Verify files exist
     expected_files = ["train.json", "dev.json", "test.json"]
