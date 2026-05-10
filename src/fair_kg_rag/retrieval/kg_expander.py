@@ -71,8 +71,11 @@ class KGExpander:
             decay = self.score_decay ** (hop + 1)
             next_frontier: dict[str, float] = {}
 
+            # Bulk-fetch neighbors for the entire frontier in one Neo4j call
+            all_neighbors = self.kg.get_neighbors_bulk(list(frontier.keys()), hops=1)
+
             for entity, parent_score in frontier.items():
-                for neighbor in self.kg.get_neighbors(entity, hops=1):
+                for neighbor in all_neighbors.get(entity, set()):
                     if neighbor in visited:
                         continue
                     score = parent_score * decay

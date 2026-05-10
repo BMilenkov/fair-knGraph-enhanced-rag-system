@@ -74,13 +74,13 @@ class FairKGExpander:
     def _bfs_expand(
         self,
         seed_results: list[tuple[str, float]],
-        score_adjust: Callable[[str, float, dict[str, Counter]], float] | None = None,
+        score_adjust: Callable[[str, float, dict[str, Counter], dict[str, list[str]]], float] | None = None,
     ) -> tuple[dict[str, float], dict[str, Counter]]:
         """Core BFS expansion shared by all strategies.
 
         Args:
             seed_results: (chunk_id, score) pairs from initial retrieval.
-            score_adjust: Optional callback(entity, base_score, demo_counts) → adjusted_score.
+            score_adjust: Optional callback(entity, base_score, demo_counts, ent_chunk_map) → adjusted_score.
 
         Returns:
             (chunk_scores, demographic_counts)
@@ -111,15 +111,30 @@ class FairKGExpander:
             decay = self.score_decay ** (hop + 1)
             next_frontier: dict[str, float] = {}
 
+            # Bulk-fetch neighbors for entire frontier in one Neo4j call
+            all_neighbors = self.kg.get_neighbors_bulk(list(frontier.keys()), hops=1)
+
+            # Collect all new neighbor entities first
+            new_neighbors: set[str] = set()
+            for entity in frontier:
+                for neighbor in all_neighbors.get(entity, set()):
+                    if neighbor not in visited:
+                        new_neighbors.add(neighbor)
+
+            # Bulk-fetch entity→chunks for all new neighbors (for score_adjust)
+            ent_chunk_map: dict[str, list[str]] = {}
+            if new_neighbors and score_adjust is not None:
+                ent_chunk_map = self.kg.get_chunks_for_entities(list(new_neighbors))
+
             for entity, parent_score in frontier.items():
-                for neighbor in self.kg.get_neighbors(entity, hops=1):
+                for neighbor in all_neighbors.get(entity, set()):
                     if neighbor in visited:
                         continue
                     base_score = parent_score * decay
 
                     # Apply fairness adjustment if provided
                     if score_adjust is not None:
-                        adjusted = score_adjust(neighbor, base_score, demo_counts)
+                        adjusted = score_adjust(neighbor, base_score, demo_counts, ent_chunk_map)
                     else:
                         adjusted = base_score
 
@@ -129,9 +144,10 @@ class FairKGExpander:
             visited.update(next_frontier.keys())
             frontier = next_frontier
 
-            # Map new entities to chunks
+            # Map new entities to chunks (reuse ent_chunk_map if available)
             if next_frontier:
-                ent_chunk_map = self.kg.get_chunks_for_entities(list(next_frontier.keys()))
+                if not ent_chunk_map:
+                    ent_chunk_map = self.kg.get_chunks_for_entities(list(next_frontier.keys()))
                 for entity, score in next_frontier.items():
                     for cid in ent_chunk_map.get(entity, []):
                         if cid not in chunk_scores or score > chunk_scores[cid]:
@@ -176,9 +192,14 @@ class FairKGExpander:
     def _in_traversal(self, seed_results: list[tuple[str, float]]) -> list[tuple[str, float]]:
         """Adjust entity scores during BFS based on running demographic distribution."""
 
-        def adjust_score(entity: str, base_score: float, demo_counts: dict[str, Counter]) -> float:
+        def adjust_score(
+            entity: str,
+            base_score: float,
+            demo_counts: dict[str, Counter],
+            ent_chunk_map: dict[str, list[str]],
+        ) -> float:
             """Penalize entities linked to over-represented demographic groups."""
-            chunk_ids = self.kg.get_entity_chunks(entity)
+            chunk_ids = ent_chunk_map.get(entity, [])
             if not chunk_ids:
                 return base_score
 

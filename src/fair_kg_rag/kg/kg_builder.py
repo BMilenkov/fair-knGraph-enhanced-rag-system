@@ -65,7 +65,7 @@ class KnowledgeGraph:
             session.run("MATCH (n) DETACH DELETE n")
 
     def _ensure_schema(self) -> None:
-        """Create constraints required for efficient KG operations."""
+        """Create constraints and indexes required for efficient KG operations."""
         with self._driver.session(database=self.database) as session:
             session.run(
                 "CREATE CONSTRAINT entity_name_unique IF NOT EXISTS "
@@ -75,6 +75,14 @@ class KnowledgeGraph:
                 "CREATE CONSTRAINT chunk_id_unique IF NOT EXISTS "
                 "FOR (c:Chunk) REQUIRE c.chunk_id IS UNIQUE"
             )
+            # Relationship property index for RELATED edges (used by get_subgraph)
+            try:
+                session.run(
+                    "CREATE INDEX related_relation IF NOT EXISTS "
+                    "FOR ()-[r:RELATED]-() ON (r.relation)"
+                )
+            except Exception:
+                pass  # AuraDB free tier may not support relationship indexes
 
     def add_triplets(self, triplets: list[Triplet]) -> None:
         """Add a batch of triplets to the knowledge graph.
@@ -141,6 +149,34 @@ class KnowledgeGraph:
         with self._driver.session(database=self.database) as session:
             records = session.run(query, entity=entity)
             return {record["name"] for record in records}
+
+    def get_neighbors_bulk(self, entities: list[str], hops: int = 1) -> dict[str, set[str]]:
+        """Bulk-fetch neighbors for multiple entities in a single Neo4j query.
+
+        Args:
+            entities: List of starting entity names.
+            hops: Maximum number of hops.
+
+        Returns:
+            Dict mapping each entity to its set of neighbor names.
+        """
+        if not entities or hops < 1:
+            return {e: set() for e in entities}
+
+        hops = max(1, int(hops))
+        query = f"""
+        UNWIND $entities AS ename
+        MATCH (start:Entity {{name: ename}})
+        MATCH path = (start)-[:RELATED*1..{hops}]-(nbr:Entity)
+        WHERE nbr.name <> ename
+        RETURN ename AS entity, collect(DISTINCT nbr.name) AS neighbors
+        """
+        result: dict[str, set[str]] = {e: set() for e in entities}
+        with self._driver.session(database=self.database) as session:
+            records = session.run(query, entities=list(set(entities)))
+            for record in records:
+                result[record["entity"]] = set(record["neighbors"])
+        return result
 
     def get_subgraph(self, entities: set[str]) -> nx.MultiDiGraph:
         """Extract the subgraph induced by a set of entities.
@@ -298,6 +334,31 @@ class KnowledgeGraph:
             for record in records:
                 result[record["entity"]] = list(record["chunk_ids"])
         return result
+
+    def get_all_chunk_entity_links(self) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+        """Load all Chunk→Entity MENTIONS relationships in bulk.
+
+        Returns:
+            (chunk_to_entities, entity_to_chunks) dicts.
+        """
+        chunk_to_entities: dict[str, list[str]] = {}
+        entity_to_chunks: dict[str, list[str]] = {}
+
+        with self._driver.session(database=self.database) as session:
+            records = session.run(
+                """
+                MATCH (c:Chunk)-[:MENTIONS]->(e:Entity)
+                RETURN c.chunk_id AS chunk_id, collect(DISTINCT e.name) AS entities
+                """
+            )
+            for record in records:
+                cid = record["chunk_id"]
+                entities = list(record["entities"])
+                chunk_to_entities[cid] = entities
+                for ent in entities:
+                    entity_to_chunks.setdefault(ent, []).append(cid)
+
+        return chunk_to_entities, entity_to_chunks
 
     def to_networkx(self) -> nx.MultiDiGraph:
         """Export the full Neo4j KG to a NetworkX MultiDiGraph."""

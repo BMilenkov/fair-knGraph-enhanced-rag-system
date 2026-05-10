@@ -313,15 +313,17 @@ def run_retrieve(cfg: dict, split: str, logger) -> StageResult:
     texts = [c.text for c in chunks]
     chunk_texts = dict(zip(chunk_ids, texts))
 
+    # Load dataset once (reused for demographics and query loop)
+    records = load_dataset(raw_dir / f"{split}.json")
+
     # Load demographics for fair expansion
     chunk_demographics: dict[str, dict] = {}
     demo_path = processed_dir / "entity_demographics.json"
     if demo_path.exists():
         demo_data = read_json(demo_path)
         demo_by_qid = {d["qid"]: d for d in demo_data}
-        records_for_demo = load_dataset(raw_dir / f"{split}.json")
         # Map chunk → demographic via question → entity_ids → demographics
-        for record in records_for_demo:
+        for record in records:
             q_chunks = manager.get_chunks_for_question(record.id)
             gender = None
             geo = None
@@ -353,7 +355,35 @@ def run_retrieve(cfg: dict, split: str, logger) -> StageResult:
     )
     pipeline.setup(chunk_ids, texts)
 
-    records = load_dataset(raw_dir / f"{split}.json")
+    # Diagnostic: show which retrieval components are active
+    exp_name = cfg.get("experiment", {}).get("name", "default")
+    logger.info(
+        "Retrieval components for [%s]: expander=%s  filter=%s  reranker=%s  organizer=%s",
+        exp_name,
+        type(pipeline._expander).__name__ if pipeline._expander else "None",
+        "GraphFilter" if pipeline._filter else "None",
+        "Reranker" if pipeline._reranker else "None",
+        "ContextOrganizer" if pipeline._organizer else "None",
+    )
+    if pipeline.kg is not None:
+        local = pipeline.kg
+        logger.info(
+            "LocalKG: %d entities, %d edges, %d chunk→entity mappings, %d entity→chunk mappings",
+            local._graph.number_of_nodes(),
+            local._graph.number_of_edges(),
+            len(local._chunk_to_entities),
+            len(local._entity_to_chunks),
+        )
+        # Check overlap between FAISS chunk IDs and KG chunk IDs
+        faiss_chunks = set(chunk_ids)
+        kg_chunks = set(local._chunk_to_entities.keys())
+        overlap = faiss_chunks & kg_chunks
+        logger.info(
+            "Chunk ID overlap: %d FAISS chunks, %d KG chunks, %d in common (%.1f%%)",
+            len(faiss_chunks), len(kg_chunks), len(overlap),
+            100 * len(overlap) / len(faiss_chunks) if faiss_chunks else 0,
+        )
+
     max_samples = cfg.get("dataset", {}).get("max_samples")
     if max_samples:
         records = records[: int(max_samples)]
@@ -374,7 +404,18 @@ def run_retrieve(cfg: dict, split: str, logger) -> StageResult:
             "metadata": ret.metadata,
         })
 
-    output_path = output_dir / f"{split}_retrieval.json"
+    # Aggregate retrieval statistics
+    if results:
+        avg_seed = sum(r["metadata"]["num_seed"] for r in results) / len(results)
+        avg_expanded = sum(r["metadata"]["num_expanded"] for r in results) / len(results)
+        avg_filtered = sum(r["metadata"]["num_filtered"] for r in results) / len(results)
+        avg_final = sum(r["metadata"]["num_final"] for r in results) / len(results)
+        logger.info(
+            "Retrieval stats [%s]: avg seed=%.1f  expanded=%.1f  filtered=%.1f  final=%.1f",
+            exp_name, avg_seed, avg_expanded, avg_filtered, avg_final,
+        )
+
+    output_path = output_dir / f"{split}_{exp_name}_retrieval.json"
     write_json(results, output_path)
 
     if kg is not None:
@@ -394,7 +435,8 @@ def run_generate(cfg: dict, split: str, logger) -> StageResult:
     from fair_kg_rag.generation.llm_backend import LLMBackend
 
     pred_dir = Path(cfg["paths"]["predictions"])
-    retrieval_path = pred_dir / f"{split}_retrieval.json"
+    exp_name = cfg.get("experiment", {}).get("name", "default")
+    retrieval_path = pred_dir / f"{split}_{exp_name}_retrieval.json"
 
     if not retrieval_path.exists():
         return StageResult(stage="GENERATE", status="failed",
@@ -434,7 +476,7 @@ def run_generate(cfg: dict, split: str, logger) -> StageResult:
             "supporting_titles": item.get("supporting_titles", []),
         })
 
-    output_path = pred_dir / f"{split}_predictions.json"
+    output_path = pred_dir / f"{split}_{exp_name}_predictions.json"
     write_json(predictions, output_path)
 
     return StageResult(
@@ -454,7 +496,8 @@ def run_evaluate(cfg: dict, split: str, logger) -> StageResult:
     metrics_dir = Path(cfg["paths"]["metrics"])
     metrics_dir.mkdir(parents=True, exist_ok=True)
 
-    pred_path = pred_dir / f"{split}_predictions.json"
+    exp_name = cfg.get("experiment", {}).get("name", "default")
+    pred_path = pred_dir / f"{split}_{exp_name}_predictions.json"
     if not pred_path.exists():
         return StageResult(stage="EVALUATE", status="failed",
                            message=f"Missing {pred_path} — run GENERATE first")
@@ -501,7 +544,6 @@ def run_evaluate(cfg: dict, split: str, logger) -> StageResult:
     )
 
     # Save full metrics
-    exp_name = cfg.get("experiment", {}).get("name", "default")
     metrics_path = metrics_dir / f"{split}_{exp_name}_metrics.json"
     write_json(result.metrics, metrics_path)
 
@@ -692,7 +734,7 @@ def main() -> None:
         default=None,
         help="Run only this single stage",
     )
-    args = parser.parse_args()
+    args, _unknown = parser.parse_known_args()
 
     cfg = load_config(args.config, overrides=parse_cli_overrides())
     set_global_seed(cfg.get("seed", 42))

@@ -15,6 +15,8 @@ from typing import Any
 
 from omegaconf import DictConfig
 
+import networkx as nx
+
 from fair_kg_rag.kg.kg_builder import KnowledgeGraph
 from fair_kg_rag.retrieval.context_organizer import ContextOrganizer
 from fair_kg_rag.retrieval.fair_kg_expander import FairKGExpander
@@ -25,6 +27,83 @@ from fair_kg_rag.retrieval.semantic_retriever import SemanticRetriever
 from fair_kg_rag.retrieval.sparse_retriever import SparseRetriever
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-memory KG: loads everything from Neo4j once, serves all queries locally
+# ---------------------------------------------------------------------------
+
+class _LocalKG:
+    """In-memory KG for fast retrieval — no per-query Neo4j calls.
+
+    Loads the full entity graph + chunk↔entity mappings from Neo4j once at init.
+    All BFS, neighbor, subgraph, and mapping operations run in-memory.
+    """
+
+    def __init__(self, kg: KnowledgeGraph) -> None:
+        logger.info("Loading KG into memory for fast retrieval...")
+        self._graph: nx.MultiDiGraph = kg.to_networkx()
+        c2e, e2c = kg.get_all_chunk_entity_links()
+        self._chunk_to_entities: dict[str, list[str]] = c2e
+        self._entity_to_chunks: dict[str, list[str]] = e2c
+        logger.info(
+            "Local KG ready: %d entities, %d edges, %d chunk-entity links",
+            self._graph.number_of_nodes(),
+            self._graph.number_of_edges(),
+            len(self._chunk_to_entities),
+        )
+
+    def clear_cache(self) -> None:
+        pass  # no-op — everything is pre-loaded
+
+    def get_entities_for_chunks(self, chunk_ids):
+        return {cid: self._chunk_to_entities.get(cid, []) for cid in chunk_ids}
+
+    def get_chunks_for_entities(self, entities):
+        return {ent: self._entity_to_chunks.get(ent, []) for ent in entities}
+
+    def get_entity_chunks(self, entity: str) -> list[str]:
+        return self._entity_to_chunks.get(entity, [])
+
+    def get_neighbors(self, entity: str, hops: int = 1) -> set[str]:
+        return self.get_neighbors_bulk([entity], hops).get(entity, set())
+
+    def get_neighbors_bulk(self, entities: list[str], hops: int = 1) -> dict[str, set[str]]:
+        result: dict[str, set[str]] = {e: set() for e in entities}
+        if hops < 1:
+            return result
+        for entity in entities:
+            if entity not in self._graph:
+                continue
+            visited = {entity}
+            frontier = {entity}
+            for _ in range(hops):
+                next_frontier: set[str] = set()
+                for node in frontier:
+                    for nbr in self._graph.successors(node):
+                        if nbr not in visited:
+                            next_frontier.add(nbr)
+                            visited.add(nbr)
+                    for nbr in self._graph.predecessors(node):
+                        if nbr not in visited:
+                            next_frontier.add(nbr)
+                            visited.add(nbr)
+                frontier = next_frontier
+            result[entity] = visited - {entity}
+        return result
+
+    def get_subgraph(self, entities: set[str]) -> nx.MultiDiGraph:
+        names = sorted({n for n in entities if n and n in self._graph})
+        if not names:
+            return nx.MultiDiGraph()
+        return self._graph.subgraph(names).copy()
+
+    def get_edge_data(self, source: str, target: str) -> list[dict]:
+        if not self._graph.has_node(source) or not self._graph.has_node(target):
+            return []
+        edges = self._graph.get_edge_data(source, target)
+        if edges is None:
+            return []
+        return [dict(data) for _, data in edges.items()]
 
 
 @dataclass
@@ -66,7 +145,8 @@ class RetrievalPipeline:
         chunk_demographics: dict[str, dict] | None = None,
     ) -> None:
         self.cfg = cfg
-        self.kg = kg
+        self._raw_kg = kg
+        self.kg = _LocalKG(kg) if kg is not None else None
         self.chunk_texts = chunk_texts or {}
         self.chunk_demographics = chunk_demographics or {}
 
@@ -106,12 +186,14 @@ class RetrievalPipeline:
         else:
             self._semantic.build_index(chunk_ids, texts)
 
-        # Sparse retriever (always rebuilt — fast in-memory BM25)
+        # Sparse retriever — built on demand (currently unused in retrieve())
         sparse_cfg = retrieval_cfg.get("sparse", {})
         self._sparse = SparseRetriever(
             k1=sparse_cfg.get("k1", 1.5), b=sparse_cfg.get("b", 0.75)
         )
-        self._sparse.build_index(chunk_ids, texts)
+        # Skip building BM25 index — not used in the current retrieval flow.
+        # Uncomment the line below if hybrid retrieval is added.
+        # self._sparse.build_index(chunk_ids, texts)
 
         # KG expansion
         kg_cfg = retrieval_cfg.get("kg_expansion", {})
@@ -173,6 +255,10 @@ class RetrievalPipeline:
         """
         result = RetrievalResult()
         retrieval_cfg = self.cfg.get("retrieval", {})
+
+        # Clear per-query Neo4j cache
+        if self.kg is not None:
+            self.kg.clear_cache()
 
         # Step 1: Seed retrieval
         top_k = retrieval_cfg.get("dense", {}).get("top_k", 10)
