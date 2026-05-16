@@ -143,6 +143,18 @@ def run_kg_build(cfg: dict, split: str, logger) -> StageResult:
                 logger.info(
                     "Neo4j already has %d entities — reusing existing KG", existing
                 )
+                # Still build entity→QID mapping if missing (needed for chunk demographics)
+                qid_map_path = kg_dir / f"{split}_entity_to_qid.json"
+                if not qid_map_path.exists():
+                    from fair_kg_rag.data.dataset_loader import load_dataset as _load_ds
+                    _records = _load_ds(raw_dir / f"{split}.json")
+                    _name_to_qid: dict[str, str] = {}
+                    for _rec in _records:
+                        _subjects = list(dict.fromkeys(ev.subject for ev in _rec.evidences))
+                        for _name, _qid in zip(_subjects, _rec.wikidata_ids):
+                            _name_to_qid[_name] = _qid
+                    write_json(_name_to_qid, qid_map_path)
+                    logger.info("Entity→QID mapping: %d entries (built during skip)", len(_name_to_qid))
                 return StageResult(
                     stage="KG_BUILD", status="skipped",
                     message=(
@@ -205,6 +217,26 @@ def run_kg_build(cfg: dict, split: str, logger) -> StageResult:
     # Save normalized triples for inspection
     triples_path = kg_dir / f"{split}_kg_triplets.json"
     write_json(triplets_to_dicts(normalized), triples_path)
+
+    # Build entity_name → Wikidata QID mapping (evidence subjects ↔ entity_ids)
+    name_to_qid: dict[str, str] = {}
+    for record in records:
+        subjects = list(dict.fromkeys(ev.subject for ev in record.evidences))
+        qids = record.wikidata_ids
+        for name, qid in zip(subjects, qids):
+            name_to_qid[name] = qid
+
+    # Map canonical (normalized) entity names → QID
+    canonical_to_qid: dict[str, str] = {}
+    for original_name, qid in name_to_qid.items():
+        canonical = linker.normalize(original_name)
+        canonical_to_qid[canonical] = qid
+        if original_name != canonical:
+            canonical_to_qid[original_name] = qid
+
+    qid_map_path = kg_dir / f"{split}_entity_to_qid.json"
+    write_json(canonical_to_qid, qid_map_path)
+    logger.info("Entity→QID mapping: %d entries saved to %s", len(canonical_to_qid), qid_map_path)
 
     kg.close()
     return StageResult(
@@ -316,27 +348,6 @@ def run_retrieve(cfg: dict, split: str, logger) -> StageResult:
     # Load dataset once (reused for demographics and query loop)
     records = load_dataset(raw_dir / f"{split}.json")
 
-    # Load demographics for fair expansion
-    chunk_demographics: dict[str, dict] = {}
-    demo_by_qid: dict[str, dict] = {}
-    demo_path = processed_dir / "entity_demographics.json"
-    if demo_path.exists():
-        demo_data = read_json(demo_path)
-        demo_by_qid = {d["qid"]: d for d in demo_data}
-        # Map chunk → demographic via question → entity_ids → demographics
-        for record in records:
-            q_chunks = manager.get_chunks_for_question(record.id)
-            gender = None
-            geo = None
-            for qid in record.wikidata_ids:
-                d = demo_by_qid.get(qid, {})
-                if d.get("gender"):
-                    gender = gender or d["gender"]
-                if d.get("geo_group"):
-                    geo = geo or d["geo_group"]
-            for c in q_chunks:
-                chunk_demographics[c.chunk_id] = {"gender": gender, "geo_group": geo}
-
     # Connect Neo4j KG if KG expansion is enabled
     kg = None
     if cfg.get("retrieval", {}).get("kg_expansion", {}).get("enabled", False):
@@ -346,6 +357,38 @@ def run_retrieve(cfg: dict, split: str, logger) -> StageResult:
             password=neo4j_cfg.get("password"),
             database=neo4j_cfg.get("database", "neo4j"),
         )
+
+    # Build chunk demographics from KG MENTIONS (entity-level, not question-level)
+    chunk_demographics: dict[str, dict] = {}
+    kg_dir = Path(cfg["paths"]["kg_data"])
+    entity_to_qid_path = kg_dir / f"{split}_entity_to_qid.json"
+    entity_to_qid = read_json(entity_to_qid_path) if entity_to_qid_path.exists() else {}
+    demo_path = processed_dir / "entity_demographics.json"
+    demo_by_qid: dict[str, dict] = {}
+    if demo_path.exists():
+        demo_data = read_json(demo_path)
+        demo_by_qid = {d["qid"]: d for d in demo_data}
+
+    if entity_to_qid and demo_by_qid and kg is not None:
+        chunk_to_entities, _ = kg.get_all_chunk_entity_links()
+        for chunk_id, entities in chunk_to_entities.items():
+            gender = None
+            geo = None
+            for entity_name in entities:
+                qid = entity_to_qid.get(entity_name)
+                if not qid:
+                    continue
+                d = demo_by_qid.get(qid, {})
+                if not gender and d.get("gender"):
+                    gender = d["gender"]
+                if not geo and d.get("geo_group"):
+                    geo = d["geo_group"]
+            chunk_demographics[chunk_id] = {"gender": gender, "geo_group": geo}
+        tagged = sum(1 for v in chunk_demographics.values() if v.get("gender") or v.get("geo_group"))
+        logger.info("Chunk demographics: %d/%d chunks tagged (entity-level via MENTIONS)",
+                    tagged, len(chunk_demographics))
+    else:
+        logger.info("Skipping chunk demographics (no KG or entity→QID mapping available)")
 
     # Setup and run pipeline (inject split for index path resolution)
     cfg_with_split = dict(cfg)
