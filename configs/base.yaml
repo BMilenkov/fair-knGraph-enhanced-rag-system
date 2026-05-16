@@ -21,6 +21,12 @@ dataset:
 chunking:
   max_tokens: 512
 
+generation:
+  model_name: "mistralai/Mistral-7B-Instruct-v0.3"
+  max_new_tokens: 64
+  temperature: 0.1
+  use_4bit: true
+
 logging:
   level: "INFO"
   log_to_file: true

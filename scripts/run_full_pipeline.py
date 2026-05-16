@@ -318,6 +318,7 @@ def run_retrieve(cfg: dict, split: str, logger) -> StageResult:
 
     # Load demographics for fair expansion
     chunk_demographics: dict[str, dict] = {}
+    demo_by_qid: dict[str, dict] = {}
     demo_path = processed_dir / "entity_demographics.json"
     if demo_path.exists():
         demo_data = read_json(demo_path)
@@ -386,7 +387,27 @@ def run_retrieve(cfg: dict, split: str, logger) -> StageResult:
 
     max_samples = cfg.get("dataset", {}).get("max_samples")
     if max_samples:
-        records = records[: int(max_samples)]
+        max_samples = int(max_samples)
+        # Prioritize records with demographic entities for fairness evaluation
+        if demo_by_qid:
+            def _has_demo(r):
+                for qid in r.wikidata_ids:
+                    d = demo_by_qid.get(qid, {})
+                    if d.get("gender"):
+                        return True
+                    geo = d.get("geo_group", "unknown")
+                    if geo not in ("unknown", None):
+                        return True
+                return False
+            with_demo = [r for r in records if _has_demo(r)]
+            without_demo = [r for r in records if not _has_demo(r)]
+            records = (with_demo + without_demo)[:max_samples]
+            logger.info(
+                "Sample selection: %d/%d have demographics (prioritized)",
+                min(len(with_demo), max_samples), len(records),
+            )
+        else:
+            records = records[:max_samples]
 
     results = []
     for record in tqdm(records, desc="Retrieving", unit="q"):

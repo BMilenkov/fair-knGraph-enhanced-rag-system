@@ -25,6 +25,7 @@ from fair_kg_rag.retrieval.kg_expander import KGExpander
 from fair_kg_rag.retrieval.reranker import Reranker
 from fair_kg_rag.retrieval.semantic_retriever import SemanticRetriever
 from fair_kg_rag.retrieval.sparse_retriever import SparseRetriever
+from fair_kg_rag.utils.text_utils import truncate_text
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +302,10 @@ class RetrievalPipeline:
                 if cid in self.chunk_texts
             ]
             context = "\n\n".join(parts)
+            max_ctx = self.cfg.get("retrieval", {}).get("context", {}).get(
+                "max_context_tokens", 2048
+            )
+            context = truncate_text(context, max_ctx)
 
         result.context = context
         result.metadata = {
