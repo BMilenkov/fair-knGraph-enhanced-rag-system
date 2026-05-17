@@ -94,7 +94,7 @@ class Generator:
         contexts: list[str],
         batch_triples: list[list[dict]] | None = None,
     ) -> list[GenerationResult]:
-        """Generate answers for a batch of questions.
+        """Generate answers for a batch of questions using GPU batching.
 
         Args:
             questions: List of questions.
@@ -104,9 +104,31 @@ class Generator:
         Returns:
             List of GenerationResult objects.
         """
-        results = []
+        prompts = []
         for i, (question, context) in enumerate(zip(questions, contexts)):
             triples = batch_triples[i] if batch_triples else None
-            result = self.generate(question, context, triples)
-            results.append(result)
+            prompt = render_qa_prompt(
+                question=question,
+                context=context,
+                triples=triples,
+                include_evidence=self.include_evidence,
+            )
+            prompts.append(prompt)
+
+        raw_responses = self.llm.generate_batch(
+            prompts, max_new_tokens=self.max_new_tokens
+        )
+
+        results = []
+        for i, raw_response in enumerate(raw_responses):
+            parsed = parse_answer(raw_response)
+            results.append(GenerationResult(
+                answer=parsed.answer,
+                raw_response=raw_response,
+                prompt=prompts[i],
+                metadata={
+                    "context_length": len(contexts[i].split()) if contexts[i] else 0,
+                    "num_triples": len(batch_triples[i]) if batch_triples else 0,
+                },
+            ))
         return results

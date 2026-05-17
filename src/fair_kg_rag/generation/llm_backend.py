@@ -121,18 +121,60 @@ class LLMBackend:
         self,
         prompts: list[str],
         max_new_tokens: int | None = None,
+        do_sample: bool = False,
     ) -> list[str]:
-        """Generate text for a batch of prompts.
+        """Generate text for a batch of prompts using true GPU batching.
+
+        Uses left-padding for decoder-only models so that generated tokens
+        are aligned at the right edge. With greedy decoding the outputs are
+        identical to sequential calls.
 
         Args:
             prompts: List of input prompts.
             max_new_tokens: Override default max tokens.
+            do_sample: Whether to use sampling.
 
         Returns:
             List of generated texts.
         """
-        # Simple sequential generation (batch padding is complex)
-        return [self.generate(p, max_new_tokens=max_new_tokens) for p in prompts]
+        if not prompts:
+            return []
+
+        self._load_model()
+        max_tokens = max_new_tokens or self.max_new_tokens
+
+        # Left-pad for decoder-only batched generation
+        prev_side = self._tokenizer.padding_side
+        self._tokenizer.padding_side = "left"
+
+        inputs = self._tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=4096,
+        )
+        inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
+
+        with torch.no_grad():
+            outputs = self._model.generate(
+                **inputs,
+                max_new_tokens=max_tokens,
+                do_sample=do_sample,
+                pad_token_id=self._tokenizer.pad_token_id,
+            )
+
+        self._tokenizer.padding_side = prev_side
+
+        # Decode only the generated portion for each item
+        input_len = inputs["input_ids"].shape[1]
+        results = []
+        for output in outputs:
+            generated_ids = output[input_len:]
+            text = self._tokenizer.decode(generated_ids, skip_special_tokens=True)
+            results.append(text)
+
+        return results
 
     @property
     def is_loaded(self) -> bool:
