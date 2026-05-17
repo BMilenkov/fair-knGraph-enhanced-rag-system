@@ -39,6 +39,7 @@ class LLMBackend:
         self.use_4bit = use_4bit
         self._model = None
         self._tokenizer = None
+        self._use_chat_template = False
 
     def _load_model(self) -> None:
         """Lazy-load the model and tokenizer."""
@@ -79,7 +80,23 @@ class LLMBackend:
             self.model_name, **load_kwargs
         )
         self._model.eval()
+
+        # Use chat template if the tokenizer provides one (e.g. Mistral [INST])
+        if hasattr(self._tokenizer, "chat_template") and self._tokenizer.chat_template:
+            self._use_chat_template = True
+            logger.info("Chat template detected — will wrap prompts with [INST] format")
+
         logger.info(f"Model loaded: {self.model_name}")
+
+    def _format_prompt(self, prompt: str) -> str:
+        """Wrap prompt with chat template (e.g. Mistral [INST]) if available."""
+        if not self._use_chat_template:
+            return prompt
+        return self._tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
 
     def generate(
         self,
@@ -104,8 +121,10 @@ class LLMBackend:
         max_tokens = max_new_tokens or self.max_new_tokens
         temp = temperature or self.temperature
 
+        formatted = self._format_prompt(prompt)
         inputs = self._tokenizer(
-            prompt, return_tensors="pt", truncation=True, max_length=4096
+            formatted, return_tensors="pt", truncation=True, max_length=4096,
+            add_special_tokens=not self._use_chat_template,
         )
         inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
 
@@ -152,12 +171,14 @@ class LLMBackend:
         prev_side = self._tokenizer.padding_side
         self._tokenizer.padding_side = "left"
 
+        formatted = [self._format_prompt(p) for p in prompts]
         inputs = self._tokenizer(
-            prompts,
+            formatted,
             return_tensors="pt",
             padding=True,
             truncation=True,
             max_length=4096,
+            add_special_tokens=not self._use_chat_template,
         )
         inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
 
