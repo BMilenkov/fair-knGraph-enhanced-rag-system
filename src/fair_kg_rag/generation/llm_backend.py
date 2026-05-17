@@ -57,6 +57,11 @@ class LLMBackend:
 
         load_kwargs: dict[str, Any] = {"trust_remote_code": True}
 
+        # Use SDPA (Scaled Dot-Product Attention) for faster attention on T4
+        # Note: Flash Attention 2 requires SM80+ (Ampere); T4 is SM75 (Turing)
+        if self.device == "cuda":
+            load_kwargs["attn_implementation"] = "sdpa"
+
         if self.use_4bit and self.device == "cuda":
             from transformers import BitsAndBytesConfig
             load_kwargs["quantization_config"] = BitsAndBytesConfig(
@@ -104,7 +109,7 @@ class LLMBackend:
         )
         inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
 
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = self._model.generate(
                 **inputs,
                 max_new_tokens=max_tokens,
@@ -156,7 +161,7 @@ class LLMBackend:
         )
         inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
 
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = self._model.generate(
                 **inputs,
                 max_new_tokens=max_tokens,

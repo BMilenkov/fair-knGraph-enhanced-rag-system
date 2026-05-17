@@ -23,7 +23,7 @@ chunking:
 
 generation:
   model_name: "mistralai/Mistral-7B-Instruct-v0.3"
-  max_new_tokens: 64
+  max_new_tokens: 32
   temperature: 0.1
   use_4bit: true
 
