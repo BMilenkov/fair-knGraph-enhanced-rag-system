@@ -1,0 +1,26 @@
+2026-05-17 16:29:45 | INFO     | pipeline | ========================================================================
+2026-05-17 16:29:45 | INFO     | pipeline | Fair KG-Enhanced RAG Pipeline v0.2.0
+2026-05-17 16:29:45 | INFO     | pipeline | Experiment : kg2rag_standard
+2026-05-17 16:29:45 | INFO     | pipeline | Description: KG²RAG replication with BFS expansion + MST filtering + DFS context
+2026-05-17 16:29:45 | INFO     | pipeline | Split      : dev
+2026-05-17 16:29:45 | INFO     | pipeline | Device     : cuda
+2026-05-17 16:29:45 | INFO     | pipeline | Python     : 3.12.13
+2026-05-17 16:29:45 | INFO     | pipeline | Platform   : Linux-6.6.122+-x86_64-with-glibc2.35
+2026-05-17 16:29:45 | INFO     | pipeline | Timestamp  : 2026-05-17T16:29:45.400265+00:00
+2026-05-17 16:29:45 | INFO     | pipeline | ========================================================================
+2026-05-17 16:29:45 | INFO     | pipeline | 
+2026-05-17 16:29:45 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-17 16:29:45 | INFO     | pipeline |   Stage 5/7: RETRIEVE
+2026-05-17 16:29:45 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-17 16:30:04 | INFO     | pipeline | Chunk demographics: 32344/32344 chunks tagged (entity-level via MENTIONS)
+2026-05-17 16:30:51 | INFO     | pipeline | Retrieval components for [kg2rag_standard]: expander=KGExpander  filter=GraphFilter  reranker=Reranker  organizer=ContextOrganizer
+2026-05-17 16:30:51 | INFO     | pipeline | LocalKG: 19061 entities, 160532 edges, 32344 chunk→entity mappings, 19061 entity→chunk mappings
+2026-05-17 16:30:51 | INFO     | pipeline | Chunk ID overlap: 55210 FAISS chunks, 32344 KG chunks, 32344 in common (58.6%)
+2026-05-17 17:34:36 | INFO     | pipeline | Retrieval stats [kg2rag_standard]: avg seed=10.0  expanded=19.6  filtered=14.3  final=5.0
+2026-05-17 17:34:37 | INFO     | pipeline |   ✓ RETRIEVE  [completed]  3892.5s  — 12576 queries processed
+2026-05-17 17:34:37 | INFO     | pipeline | 
+2026-05-17 17:34:37 | INFO     | pipeline | ========================================================================
+2026-05-17 17:34:37 | INFO     | pipeline |   PIPELINE SUMMARY — kg2rag_standard — 3892.5s total
+2026-05-17 17:34:37 | INFO     | pipeline | ========================================================================
+2026-05-17 17:34:37 | INFO     | pipeline |   ✓ RETRIEVE         3892.5s  12576 queries processed
+2026-05-17 17:34:37 | INFO     | pipeline | ========================================================================

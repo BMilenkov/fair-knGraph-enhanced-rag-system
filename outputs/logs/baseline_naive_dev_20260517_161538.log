@@ -1,0 +1,16 @@
+2026-05-17 16:15:38 | INFO     | pipeline | ========================================================================
+2026-05-17 16:15:38 | INFO     | pipeline | Fair KG-Enhanced RAG Pipeline v0.2.0
+2026-05-17 16:15:38 | INFO     | pipeline | Experiment : baseline_naive
+2026-05-17 16:15:38 | INFO     | pipeline | Description: Naive RAG with dense retrieval only, no KG expansion
+2026-05-17 16:15:38 | INFO     | pipeline | Split      : dev
+2026-05-17 16:15:38 | INFO     | pipeline | Device     : cuda
+2026-05-17 16:15:38 | INFO     | pipeline | Python     : 3.12.13
+2026-05-17 16:15:38 | INFO     | pipeline | Platform   : Linux-6.6.122+-x86_64-with-glibc2.35
+2026-05-17 16:15:38 | INFO     | pipeline | Timestamp  : 2026-05-17T16:15:38.230828+00:00
+2026-05-17 16:15:38 | INFO     | pipeline | ========================================================================
+2026-05-17 16:15:38 | INFO     | pipeline | 
+2026-05-17 16:15:38 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-17 16:15:38 | INFO     | pipeline |   Stage 5/7: RETRIEVE
+2026-05-17 16:15:38 | INFO     | pipeline | ────────────────────────────────────────────────────────────────────────
+2026-05-17 16:15:52 | INFO     | pipeline | Skipping chunk demographics (no KG or entity→QID mapping available)
+2026-05-17 16:23:42 | INFO     | pipeline | Retrieval components for [baseline_naive]: expander=None  filter=None  reranker=None  organizer=None
