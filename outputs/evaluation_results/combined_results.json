@@ -1,0 +1,122 @@
+{
+  "meta": {
+    "dataset": "2WikiMultiHopQA",
+    "split": "dev",
+    "llm": "mistralai/Mistral-7B-Instruct-v0.3 (4-bit quantized)",
+    "embedding_model": "BAAI/bge-base-en-v1.5",
+    "reranker": "BAAI/bge-reranker-base",
+    "kg_backend": "Neo4j AuraDB",
+    "fairness_balance_factor": 0.8,
+    "kg_expansion_decay": 0.8,
+    "max_hops": 3,
+    "top_k_retrieval": 10,
+    "top_k_rerank": 5
+  },
+  "experiments": {
+    "baseline_naive": {
+      "description": "Pure semantic retrieval (FAISS cosine similarity, top-10). No KG expansion, no MST, no reranking, no fairness.",
+      "accuracy": {
+        "exact_match": 0.2132,
+        "answer_f1": 0.5692
+      },
+      "retrieval": {
+        "mrr@1": 0.8980,
+        "recall@1": 0.3985,
+        "precision@1": 0.8980,
+        "mrr@3": 0.9370,
+        "recall@3": 0.6340,
+        "precision@3": 0.4827,
+        "mrr@5": 0.9385,
+        "recall@5": 0.6810,
+        "precision@5": 0.3106,
+        "mrr@10": 0.9391,
+        "recall@10": 0.7020,
+        "precision@10": 0.1598
+      },
+      "fairness": {
+        "gender": {
+          "demographic_parity": 0.1312
+        },
+        "geo_group": {
+          "demographic_parity": 0.1195
+        }
+      },
+      "per_type_f1": {
+        "comparison": 0.5265,
+        "bridge_comparison": 0.5742,
+        "compositional": 0.4498,
+        "inference": 0.4631
+      }
+    },
+    "kg2rag_standard": {
+      "description": "Full KG2RAG: semantic seed, BFS KG expansion, MST filtering, cross-encoder reranking, DFS context ordering. No fairness.",
+      "accuracy": {
+        "exact_match": 0.2900,
+        "answer_f1": 0.7140
+      },
+      "retrieval": {
+        "mrr@1": 0.9460,
+        "recall@1": 0.4298,
+        "precision@1": 0.9460,
+        "mrr@3": 0.9687,
+        "recall@3": 0.7095,
+        "precision@3": 0.5402,
+        "mrr@5": 0.9701,
+        "recall@5": 0.7486,
+        "precision@5": 0.3451,
+        "mrr@10": 0.9701,
+        "recall@10": 0.7486,
+        "precision@10": 0.3451
+      },
+      "fairness": {
+        "gender": {
+          "demographic_parity": 0.1347
+        },
+        "geo_group": {
+          "demographic_parity": 0.0562
+        }
+      },
+      "per_type_f1": {
+        "comparison": 0.8912,
+        "bridge_comparison": 0.6624,
+        "compositional": 0.7295,
+        "inference": 0.5188
+      }
+    },
+    "kg2rag_fair": {
+      "description": "Full Fair KG-Enhanced RAG: KG expansion with in-traversal fairness balancing (balance_factor=0.8), MST filtering, reranking, DFS ordering. Entity-level chunk demographics via KG MENTIONS.",
+      "accuracy": {
+        "exact_match": 0.2256,
+        "answer_f1": 0.6897
+      },
+      "retrieval": {
+        "mrr@1": 0.9420,
+        "recall@1": 0.4251,
+        "precision@1": 0.9420,
+        "mrr@3": 0.9648,
+        "recall@3": 0.6942,
+        "precision@3": 0.5290,
+        "mrr@5": 0.9660,
+        "recall@5": 0.7218,
+        "precision@5": 0.3328,
+        "mrr@10": 0.9660,
+        "recall@10": 0.7218,
+        "precision@10": 0.3328
+      },
+      "fairness": {
+        "gender": {
+          "demographic_parity": 0.0724
+        },
+        "geo_group": {
+          "demographic_parity": 0.0286
+        }
+      },
+      "per_type_f1": {
+        "comparison": 0.6978,
+        "bridge_comparison": 0.4412,
+        "compositional": 0.4856,
+        "inference": 0.5748
+      }
+    }
+  }
+}
