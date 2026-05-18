@@ -146,7 +146,7 @@ class LLMBackend:
         prompts: list[str],
         max_new_tokens: int | None = None,
         do_sample: bool = False,
-        max_batch_tokens: int = 16384,
+        max_batch_tokens: int = 8192,
         max_batch_size: int = 32,
     ) -> list[str]:
         """Generate text using sorted adaptive micro-batching.
@@ -239,6 +239,10 @@ class LLMBackend:
                     generated_ids, skip_special_tokens=True
                 )
                 results_sorted.append(text)
+
+            # Free GPU memory between micro-batches to prevent fragmentation
+            del inputs, outputs
+            torch.cuda.empty_cache()
 
             pos += bs
 
