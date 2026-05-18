@@ -146,22 +146,19 @@ class LLMBackend:
         prompts: list[str],
         max_new_tokens: int | None = None,
         do_sample: bool = False,
-        max_batch_tokens: int = 8192,
-        max_batch_size: int = 32,
+        max_batch_size: int = 16,
     ) -> list[str]:
-        """Generate text using sorted adaptive micro-batching.
+        """Generate text using sorted batching with fixed batch size.
 
-        Sorts prompts by token length and creates variable-size micro-batches
-        constrained by a token budget. Short prompts get large batches (more
-        GPU parallelism), long prompts get small batches (avoid OOM). Padding
-        waste is minimized because similar-length prompts are grouped together.
+        Sorts prompts by token length so similar-length prompts are grouped,
+        minimizing padding waste. Uses a fixed max batch size that is safe
+        for T4 GPU (15 GB VRAM) with 4-bit Mistral-7B.
 
         Args:
             prompts: List of input prompts (any number).
             max_new_tokens: Override default max tokens.
             do_sample: Whether to use sampling.
-            max_batch_tokens: Token budget per micro-batch (input + output).
-            max_batch_size: Hard cap on items per micro-batch.
+            max_batch_size: Items per micro-batch (16 safe for T4).
 
         Returns:
             List of generated texts (same order as input prompts).
@@ -176,23 +173,9 @@ class LLMBackend:
         # Format all prompts with chat template
         formatted = [self._format_prompt(p) for p in prompts]
 
-        # Pre-tokenize for exact lengths (fast: ~1ms per prompt)
-        token_lengths = [
-            len(self._tokenizer.encode(f, add_special_tokens=add_special))
-            for f in formatted
-        ]
-
-        # Sort by token length → minimal padding within each micro-batch
-        order = sorted(range(len(formatted)), key=lambda i: token_lengths[i])
+        # Sort by length → similar-length prompts batched → less padding
+        order = sorted(range(len(formatted)), key=lambda i: len(formatted[i]))
         formatted_sorted = [formatted[i] for i in order]
-        lengths_sorted = [token_lengths[i] for i in order]
-
-        if len(prompts) > 1:
-            logger.info(
-                f"Smart batching {len(prompts)} prompts "
-                f"(tokens: {lengths_sorted[0]}–{lengths_sorted[-1]}, "
-                f"budget: {max_batch_tokens})"
-            )
 
         results_sorted: list[str] = []
         prev_side = self._tokenizer.padding_side
@@ -200,18 +183,7 @@ class LLMBackend:
 
         pos = 0
         while pos < len(formatted_sorted):
-            # Binary search for optimal micro-batch size:
-            # find largest bs where longest_seq * bs <= token budget
-            lo, hi = 1, min(max_batch_size, len(formatted_sorted) - pos)
-            while lo < hi:
-                mid = (lo + hi + 1) // 2
-                seq_len = lengths_sorted[pos + mid - 1] + max_tokens
-                if seq_len * mid <= max_batch_tokens:
-                    lo = mid
-                else:
-                    hi = mid - 1
-            bs = lo
-
+            bs = min(max_batch_size, len(formatted_sorted) - pos)
             batch = formatted_sorted[pos:pos + bs]
 
             inputs = self._tokenizer(
@@ -240,7 +212,6 @@ class LLMBackend:
                 )
                 results_sorted.append(text)
 
-            # Free GPU memory between micro-batches to prevent fragmentation
             del inputs, outputs
             torch.cuda.empty_cache()
 
