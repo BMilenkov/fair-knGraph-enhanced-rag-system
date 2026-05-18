@@ -146,59 +146,108 @@ class LLMBackend:
         prompts: list[str],
         max_new_tokens: int | None = None,
         do_sample: bool = False,
+        max_batch_tokens: int = 16384,
+        max_batch_size: int = 32,
     ) -> list[str]:
-        """Generate text for a batch of prompts using true GPU batching.
+        """Generate text using sorted adaptive micro-batching.
 
-        Uses left-padding for decoder-only models so that generated tokens
-        are aligned at the right edge. With greedy decoding the outputs are
-        identical to sequential calls.
+        Sorts prompts by token length and creates variable-size micro-batches
+        constrained by a token budget. Short prompts get large batches (more
+        GPU parallelism), long prompts get small batches (avoid OOM). Padding
+        waste is minimized because similar-length prompts are grouped together.
 
         Args:
-            prompts: List of input prompts.
+            prompts: List of input prompts (any number).
             max_new_tokens: Override default max tokens.
             do_sample: Whether to use sampling.
+            max_batch_tokens: Token budget per micro-batch (input + output).
+            max_batch_size: Hard cap on items per micro-batch.
 
         Returns:
-            List of generated texts.
+            List of generated texts (same order as input prompts).
         """
         if not prompts:
             return []
 
         self._load_model()
         max_tokens = max_new_tokens or self.max_new_tokens
+        add_special = not self._use_chat_template
 
-        # Left-pad for decoder-only batched generation
+        # Format all prompts with chat template
+        formatted = [self._format_prompt(p) for p in prompts]
+
+        # Pre-tokenize for exact lengths (fast: ~1ms per prompt)
+        token_lengths = [
+            len(self._tokenizer.encode(f, add_special_tokens=add_special))
+            for f in formatted
+        ]
+
+        # Sort by token length → minimal padding within each micro-batch
+        order = sorted(range(len(formatted)), key=lambda i: token_lengths[i])
+        formatted_sorted = [formatted[i] for i in order]
+        lengths_sorted = [token_lengths[i] for i in order]
+
+        if len(prompts) > 1:
+            logger.info(
+                f"Smart batching {len(prompts)} prompts "
+                f"(tokens: {lengths_sorted[0]}–{lengths_sorted[-1]}, "
+                f"budget: {max_batch_tokens})"
+            )
+
+        results_sorted: list[str] = []
         prev_side = self._tokenizer.padding_side
         self._tokenizer.padding_side = "left"
 
-        formatted = [self._format_prompt(p) for p in prompts]
-        inputs = self._tokenizer(
-            formatted,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=4096,
-            add_special_tokens=not self._use_chat_template,
-        )
-        inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
+        pos = 0
+        while pos < len(formatted_sorted):
+            # Binary search for optimal micro-batch size:
+            # find largest bs where longest_seq * bs <= token budget
+            lo, hi = 1, min(max_batch_size, len(formatted_sorted) - pos)
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                seq_len = lengths_sorted[pos + mid - 1] + max_tokens
+                if seq_len * mid <= max_batch_tokens:
+                    lo = mid
+                else:
+                    hi = mid - 1
+            bs = lo
 
-        with torch.inference_mode():
-            outputs = self._model.generate(
-                **inputs,
-                max_new_tokens=max_tokens,
-                do_sample=do_sample,
-                pad_token_id=self._tokenizer.pad_token_id,
+            batch = formatted_sorted[pos:pos + bs]
+
+            inputs = self._tokenizer(
+                batch,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=4096,
+                add_special_tokens=add_special,
             )
+            inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
+
+            with torch.inference_mode():
+                outputs = self._model.generate(
+                    **inputs,
+                    max_new_tokens=max_tokens,
+                    do_sample=do_sample,
+                    pad_token_id=self._tokenizer.pad_token_id,
+                )
+
+            input_len = inputs["input_ids"].shape[1]
+            for output in outputs:
+                generated_ids = output[input_len:]
+                text = self._tokenizer.decode(
+                    generated_ids, skip_special_tokens=True
+                )
+                results_sorted.append(text)
+
+            pos += bs
 
         self._tokenizer.padding_side = prev_side
 
-        # Decode only the generated portion for each item
-        input_len = inputs["input_ids"].shape[1]
-        results = []
-        for output in outputs:
-            generated_ids = output[input_len:]
-            text = self._tokenizer.decode(generated_ids, skip_special_tokens=True)
-            results.append(text)
+        # Restore original order
+        results = [""] * len(prompts)
+        for sorted_idx, orig_idx in enumerate(order):
+            results[orig_idx] = results_sorted[sorted_idx]
 
         return results
 
